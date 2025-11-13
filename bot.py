@@ -1,7 +1,7 @@
 import logging
 import os
 from telegram import Update, ReplyKeyboardMarkup
-from telegram.ext import Updater, CommandHandler, CallbackContext, MessageHandler, Filters
+from telegram.ext import Application, CommandHandler, ContextTypes, MessageHandler, filters
 import json
 
 # Настройка логирования
@@ -31,6 +31,7 @@ def load_stats():
         if os.path.exists(STATS_FILE):
             with open(STATS_FILE, 'r', encoding='utf-8') as f:
                 stats = json.load(f)
+                # Миграция для изменения названия кнопки
                 if "📚 История" in stats:
                     stats["📚 История кафедры"] = stats["📚 История"]
                     del stats["📚 История"]
@@ -38,6 +39,7 @@ def load_stats():
     except Exception as e:
         logger.error(f"Ошибка загрузки статистики: {e}")
     
+    # Стандартная статистика при первом запуске
     return {
         "📢 Новости": 0,
         "🗓️ Расписание консультаций": 0,
@@ -60,7 +62,7 @@ def save_stats(stats):
 # Инициализация статистики
 button_stats = load_stats()
 
-# Тексты для разных разделов (оставляем без изменений)
+# Тексты для разных разделов
 WELCOME_TEXT = """
 <b>Вы находитесь на официальном канале кафедры теории и методики массовой физкультурно-оздоровительной работы НГУ им. П.Ф. Лесгафта, Санкт-Петербург</b>
 """
@@ -87,7 +89,7 @@ CONSULTATION_SCHEDULE_TEXT = """
 Для уточнения расписания конкретного преподавателя обращайтесь по телефону кафедры.
 """
 
-# Все текстовые константы остаются БЕЗ ИЗМЕНЕНИЙ (HISTORY_TEXT_PART1, HISTORY_TEXT_PART2, и т.д.)
+# Разбиваем историю на части
 HISTORY_TEXT_PART1 = """
 <b>📚 История кафедры</b>
 
@@ -95,7 +97,7 @@ HISTORY_TEXT_PART1 = """
 
 Комитету по физической культуре и спорту при Совете Министров СССР и его органам на местах предлагалось «…концентрироваться на массовом развитии физической культуры, спорта, туризма, активного отдыха на реализации установок ХХVI съезда КПСС о внедрении физической культуры в быт каждой советской семьи…». В Постановлении говорилось о необходимости «…организовать подготовку специалистов по массовой физкультурно-оздоровительной работе и туризму.»
 
-Массовая физкультурно-оздоровительная работа стала общегосударственным мероприятием и требовала для своего руководства новых энергичных молодых кадров, поэтому в стенах ведущего физкультурного ВУЗа страны – <b>Государственном дважды орденоносном институте физической культуры им. П.Ф. Лесгафта (ГДОИФК)</b> разрабатывается идея по созданию соответствующей кафедры с названием «Кафедра массовой физкультурно-оздоровительной работы и туризма (МФОРиТ)»
+Массовая физкультурно-оздоровительная работа стала общегосударственным мероприятием и требовала для своего руководства новых энергичных молодых кадров, поэтому в стенах ведущего физкультурного ВУЗа страны – <b>Государственном дважды орденоносном институте физической культуры им. П.Ф. Лесгаftа (ГДОИФК)</b> разрабатывается идея по созданию соответствующей кафедры с названием «Кафедра массовой физкультурно-оздоровительной работы и туризма (МФОРиТ)»
 
 <u>🏛️ 1983 год</u> - кафедра МФОРиТ была создана. Новую кафедру было поручено возглавить энергичному специалисту в системе физического воспитания и спорта <b>к.п.н., доценту Вячеславу Георгиевичу Каневцу</b>.
 
@@ -284,15 +286,15 @@ def get_main_keyboard():
     ]
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
 
-def start(update: Update, context: CallbackContext) -> None:
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Отправляет приветственное сообщение когда пользователь отправляет /start"""
     try:
-        update.message.reply_text(WELCOME_TEXT, parse_mode='HTML', reply_markup=get_main_keyboard())
+        await update.message.reply_text(WELCOME_TEXT, parse_mode='HTML', reply_markup=get_main_keyboard())
         logger.info(f"Пользователь {update.effective_user.id} запустил бота")
     except Exception as e:
         logger.error(f"Ошибка в команде start: {e}")
 
-def handle_message(update: Update, context: CallbackContext) -> None:
+async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Обрабатывает текстовые сообщения и показывает соответствующий раздел"""
     try:
         text = update.message.text
@@ -300,50 +302,50 @@ def handle_message(update: Update, context: CallbackContext) -> None:
         if text == "📢 Новости":
             response = NEWS_TEXT
             button_stats["📢 Новости"] += 1
-            update.message.reply_text(response, parse_mode='HTML', reply_markup=get_main_keyboard())
+            await update.message.reply_text(response, parse_mode='HTML', reply_markup=get_main_keyboard())
             
         elif text == "🗓️ Расписание консультаций":
             response = CONSULTATION_SCHEDULE_TEXT
             button_stats["🗓️ Расписание консультаций"] += 1
-            update.message.reply_text(response, parse_mode='HTML', reply_markup=get_main_keyboard())
+            await update.message.reply_text(response, parse_mode='HTML', reply_markup=get_main_keyboard())
             
         elif text == "📚 История кафедры":
             button_stats["📚 История кафедры"] += 1
             # Отправляем историю по частям
-            update.message.reply_text(HISTORY_TEXT_PART1, parse_mode='HTML')
-            update.message.reply_text(HISTORY_TEXT_PART2, parse_mode='HTML')
-            update.message.reply_text(HISTORY_TEXT_PART3, parse_mode='HTML')
-            update.message.reply_text(HISTORY_TEXT_PART4, parse_mode='HTML')
-            update.message.reply_text(HISTORY_TEXT_PART5, parse_mode='HTML', reply_markup=get_main_keyboard())
+            await update.message.reply_text(HISTORY_TEXT_PART1, parse_mode='HTML')
+            await update.message.reply_text(HISTORY_TEXT_PART2, parse_mode='HTML')
+            await update.message.reply_text(HISTORY_TEXT_PART3, parse_mode='HTML')
+            await update.message.reply_text(HISTORY_TEXT_PART4, parse_mode='HTML')
+            await update.message.reply_text(HISTORY_TEXT_PART5, parse_mode='HTML', reply_markup=get_main_keyboard())
             
         elif text == "🎓 Абитуриентам":
             response = APPLICANTS_TEXT
             button_stats["🎓 Абитуриентам"] += 1
-            update.message.reply_text(response, parse_mode='HTML', reply_markup=get_main_keyboard())
+            await update.message.reply_text(response, parse_mode='HTML', reply_markup=get_main_keyboard())
             
         elif text == "👨‍🎓 Студентам":
             response = STUDENTS_TEXT
             button_stats["👨‍🎓 Студентам"] += 1
-            update.message.reply_text(response, parse_mode='HTML', reply_markup=get_main_keyboard())
+            await update.message.reply_text(response, parse_mode='HTML', reply_markup=get_main_keyboard())
             
         elif text == "⚽ Спортивная работа":
             response = SPORTS_WORK_TEXT
             button_stats["⚽ Спортивная работа"] += 1
-            update.message.reply_text(response, parse_mode='HTML', reply_markup=get_main_keyboard())
+            await update.message.reply_text(response, parse_mode='HTML', reply_markup=get_main_keyboard())
             
         elif text == "🏅 Центр тестирования ГТО":
             button_stats["🏅 Центр тестирования ГТО"] += 1
-            update.message.reply_text(GTO_TESTING_CENTER_TEXT, parse_mode='HTML')
-            update.message.reply_text(GTO_TESTING_CENTER_TEXT_PART2, parse_mode='HTML', reply_markup=get_main_keyboard())
+            await update.message.reply_text(GTO_TESTING_CENTER_TEXT, parse_mode='HTML')
+            await update.message.reply_text(GTO_TESTING_CENTER_TEXT_PART2, parse_mode='HTML', reply_markup=get_main_keyboard())
             
         elif text == "👨‍🏫 Сотрудники кафедры":
             response = STAFF_TEXT
             button_stats["👨‍🏫 Сотрудники кафедры"] += 1
-            update.message.reply_text(response, parse_mode='HTML', reply_markup=get_main_keyboard())
+            await update.message.reply_text(response, parse_mode='HTML', reply_markup=get_main_keyboard())
             
         else:
             response = "Пожалуйста, используйте кнопки меню для навигации."
-            update.message.reply_text(response, parse_mode='HTML', reply_markup=get_main_keyboard())
+            await update.message.reply_text(response, parse_mode='HTML', reply_markup=get_main_keyboard())
         
         # Сохраняем статистику после каждого нажатия
         if text in button_stats:
@@ -351,9 +353,9 @@ def handle_message(update: Update, context: CallbackContext) -> None:
         
     except Exception as e:
         logger.error(f"Ошибка обработки сообщения: {e}")
-        update.message.reply_text("Произошла ошибка при обработке запроса. Попробуйте позже.", reply_markup=get_main_keyboard())
+        await update.message.reply_text("Произошла ошибка при обработке запроса. Попробуйте позже.", reply_markup=get_main_keyboard())
 
-def stat_command(update: Update, context: CallbackContext) -> None:
+async def stat_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Показывает статистику обращений к кнопкам"""
     try:
         stat_text = "<b>📊 Статистика обращений к кнопкам:</b>\n\n"
@@ -365,13 +367,13 @@ def stat_command(update: Update, context: CallbackContext) -> None:
         
         stat_text += f"\n<b>Всего обращений:</b> {total}"
         
-        update.message.reply_text(stat_text, parse_mode='HTML')
+        await update.message.reply_text(stat_text, parse_mode='HTML')
         logger.info(f"Пользователь {update.effective_user.id} запросил статистику")
     except Exception as e:
         logger.error(f"Ошибка в команде stat: {e}")
-        update.message.reply_text("Ошибка при получении статистики")
+        await update.message.reply_text("Ошибка при получении статистики")
 
-def statreset_command(update: Update, context: CallbackContext) -> None:
+async def statreset_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Сбрасывает статистику обращений"""
     try:
         global button_stats
@@ -383,13 +385,13 @@ def statreset_command(update: Update, context: CallbackContext) -> None:
         # Сохраняем сброшенную статистику
         save_stats(button_stats)
         
-        update.message.reply_text("✅ Статистика успешно сброшена!")
+        await update.message.reply_text("✅ Статистика успешно сброшена!")
         logger.info(f"Пользователь {update.effective_user.id} сбросил статистику")
     except Exception as e:
         logger.error(f"Ошибка в команде statreset: {e}")
-        update.message.reply_text("Ошибка при сбросе статистики")
+        await update.message.reply_text("Ошибка при сбросе статистики")
 
-def error_handler(update: Update, context: CallbackContext) -> None:
+async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Обрабатывает ошибки"""
     logger.error(f"Ошибка при обработке обновления: {context.error}")
 
@@ -403,20 +405,17 @@ def main() -> None:
         return
     
     try:
-        # Создаем Updater (старый API)
-        updater = Updater(BOT_TOKEN)
-        
-        # Получаем диспетчер для регистрации обработчиков
-        dispatcher = updater.dispatcher
+        # Создаем Application
+        application = Application.builder().token(BOT_TOKEN).build()
         
         # Добавляем обработчики
-        dispatcher.add_handler(CommandHandler("start", start))
-        dispatcher.add_handler(CommandHandler("stat", stat_command))
-        dispatcher.add_handler(CommandHandler("statreset", statreset_command))
-        dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, handle_message))
+        application.add_handler(CommandHandler("start", start))
+        application.add_handler(CommandHandler("stat", stat_command))
+        application.add_handler(CommandHandler("statreset", statreset_command))
+        application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
         
         # Добавляем обработчик ошибок
-        dispatcher.add_error_handler(error_handler)
+        application.add_error_handler(error_handler)
         
         # Запускаем бота
         print("=" * 60)
@@ -425,7 +424,7 @@ def main() -> None:
         print("            физкультурно-оздоровительной работы")
         print("🏫 НГУ им. П.Ф. Лесгафта, Санкт-Петербург")
         print("🌐 Хостинг: Render.com")
-        print("📚 Версия: python-telegram-bot 13.15")
+        print("📚 Версия: python-telegram-bot 21.7")
         print("=" * 60)
         print("📊 Скрытые команды для администратора:")
         print("   /stat      - показать статистику обращений")
@@ -434,9 +433,7 @@ def main() -> None:
         print("⚡ Бот работает в режиме опроса...")
         print("=" * 60)
         
-        # Запускаем опрос
-        updater.start_polling()
-        updater.idle()
+        application.run_polling()
         
     except Exception as e:
         logger.error(f"Ошибка при запуске бота: {e}")
