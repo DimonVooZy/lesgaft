@@ -1,9 +1,10 @@
 import logging
 import os
-import time
+import asyncio
+import threading
 from flask import Flask
 from telegram import Update, ReplyKeyboardMarkup
-from telegram.ext import Updater, CommandHandler, CallbackContext, MessageHandler, Filters
+from telegram.ext import Application, CommandHandler, ContextTypes, MessageHandler, filters
 import json
 
 # Настройка логирования
@@ -280,116 +281,112 @@ def get_main_keyboard():
     ]
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
 
-def start(update: Update, context: CallbackContext):
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     try:
-        update.message.reply_text(WELCOME_TEXT, parse_mode='HTML', reply_markup=get_main_keyboard())
+        await update.message.reply_text(WELCOME_TEXT, parse_mode='HTML', reply_markup=get_main_keyboard())
         logger.info(f"Пользователь {update.effective_user.id} запустил бота")
     except Exception as e:
         logger.error(f"Ошибка в команде start: {e}")
 
-def handle_message(update: Update, context: CallbackContext):
+async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     try:
         text = update.message.text
         
         if text == "📢 Новости":
             button_stats["📢 Новости"] += 1
-            update.message.reply_text(NEWS_TEXT, parse_mode='HTML', reply_markup=get_main_keyboard())
+            await update.message.reply_text(NEWS_TEXT, parse_mode='HTML', reply_markup=get_main_keyboard())
             
         elif text == "🗓️ Расписание консультаций":
             button_stats["🗓️ Расписание консультаций"] += 1
-            update.message.reply_text(CONSULTATION_SCHEDULE_TEXT, parse_mode='HTML', reply_markup=get_main_keyboard())
+            await update.message.reply_text(CONSULTATION_SCHEDULE_TEXT, parse_mode='HTML', reply_markup=get_main_keyboard())
             
         elif text == "📚 История кафедры":
             button_stats["📚 История кафедры"] += 1
-            update.message.reply_text(HISTORY_TEXT_PART1, parse_mode='HTML')
-            update.message.reply_text(HISTORY_TEXT_PART2, parse_mode='HTML')
-            update.message.reply_text(HISTORY_TEXT_PART3, parse_mode='HTML')
-            update.message.reply_text(HISTORY_TEXT_PART4, parse_mode='HTML')
-            update.message.reply_text(HISTORY_TEXT_PART5, parse_mode='HTML', reply_markup=get_main_keyboard())
+            await update.message.reply_text(HISTORY_TEXT_PART1, parse_mode='HTML')
+            await update.message.reply_text(HISTORY_TEXT_PART2, parse_mode='HTML')
+            await update.message.reply_text(HISTORY_TEXT_PART3, parse_mode='HTML')
+            await update.message.reply_text(HISTORY_TEXT_PART4, parse_mode='HTML')
+            await update.message.reply_text(HISTORY_TEXT_PART5, parse_mode='HTML', reply_markup=get_main_keyboard())
             
         elif text == "🎓 Абитуриентам":
             button_stats["🎓 Абитуриентам"] += 1
-            update.message.reply_text(APPLICANTS_TEXT, parse_mode='HTML', reply_markup=get_main_keyboard())
+            await update.message.reply_text(APPLICANTS_TEXT, parse_mode='HTML', reply_markup=get_main_keyboard())
             
         elif text == "👨‍🎓 Студентам":
             button_stats["👨‍🎓 Студентам"] += 1
-            update.message.reply_text(STUDENTS_TEXT, parse_mode='HTML', reply_markup=get_main_keyboard())
+            await update.message.reply_text(STUDENTS_TEXT, parse_mode='HTML', reply_markup=get_main_keyboard())
             
         elif text == "⚽ Спортивная работа":
             button_stats["⚽ Спортивная работа"] += 1
-            update.message.reply_text(SPORTS_WORK_TEXT, parse_mode='HTML', reply_markup=get_main_keyboard())
+            await update.message.reply_text(SPORTS_WORK_TEXT, parse_mode='HTML', reply_markup=get_main_keyboard())
             
         elif text == "🏅 Центр тестирования ГТО":
             button_stats["🏅 Центр тестирования ГТО"] += 1
-            update.message.reply_text(GTO_TESTING_CENTER_TEXT, parse_mode='HTML')
-            update.message.reply_text(GTO_TESTING_CENTER_TEXT_PART2, parse_mode='HTML', reply_markup=get_main_keyboard())
+            await update.message.reply_text(GTO_TESTING_CENTER_TEXT, parse_mode='HTML')
+            await update.message.reply_text(GTO_TESTING_CENTER_TEXT_PART2, parse_mode='HTML', reply_markup=get_main_keyboard())
             
         elif text == "👨‍🏫 Сотрудники кафедры":
             button_stats["👨‍🏫 Сотрудники кафедры"] += 1
-            update.message.reply_text(STAFF_TEXT, parse_mode='HTML', reply_markup=get_main_keyboard())
+            await update.message.reply_text(STAFF_TEXT, parse_mode='HTML', reply_markup=get_main_keyboard())
             
         else:
-            update.message.reply_text("Пожалуйста, используйте кнопки меню для навигации.", reply_markup=get_main_keyboard())
+            await update.message.reply_text("Пожалуйста, используйте кнопки меню для навигации.", reply_markup=get_main_keyboard())
         
         save_stats(button_stats)
         
     except Exception as e:
         logger.error(f"Ошибка обработки сообщения: {e}")
 
-def stat_command(update: Update, context: CallbackContext):
+async def stat_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     try:
         stat_text = "<b>📊 Статистика обращений:</b>\n\n"
         for button, count in button_stats.items():
             stat_text += f"• {button}: {count}\n"
         stat_text += f"\nВсего: {sum(button_stats.values())}"
-        update.message.reply_text(stat_text, parse_mode='HTML')
+        await update.message.reply_text(stat_text, parse_mode='HTML')
     except Exception as e:
         logger.error(f"Ошибка в команде stat: {e}")
 
-def statreset_command(update: Update, context: CallbackContext):
+async def statreset_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     try:
         for button in button_stats:
             button_stats[button] = 0
         save_stats(button_stats)
-        update.message.reply_text("✅ Статистика сброшена!")
+        await update.message.reply_text("✅ Статистика сброшена!")
     except Exception as e:
         logger.error(f"Ошибка в команде statreset: {e}")
 
-def error_handler(update: Update, context: CallbackContext):
+async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     logger.error(f"Ошибка при обработке обновления: {context.error}")
 
 # Глобальная переменная для бота
-bot_updater = None
+bot_application = None
 
-def setup_bot():
-    """Настройка и запуск бота"""
-    global bot_updater
+def run_bot():
+    """Запуск бота в отдельном потоке"""
+    global bot_application
     
     if not BOT_TOKEN:
         logger.error("❌ BOT_TOKEN не установлен!")
-        return False
+        return
     
     try:
-        bot_updater = Updater(BOT_TOKEN, use_context=True)
-        dispatcher = bot_updater.dispatcher
+        bot_application = Application.builder().token(BOT_TOKEN).build()
         
         # Добавляем обработчики
-        dispatcher.add_handler(CommandHandler("start", start))
-        dispatcher.add_handler(CommandHandler("stat", stat_command))
-        dispatcher.add_handler(CommandHandler("statreset", statreset_command))
-        dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, handle_message))
+        bot_application.add_handler(CommandHandler("start", start))
+        bot_application.add_handler(CommandHandler("stat", stat_command))
+        bot_application.add_handler(CommandHandler("statreset", statreset_command))
+        bot_application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+        bot_application.add_error_handler(error_handler)
         
-        # Добавляем обработчик ошибок
-        dispatcher.add_error_handler(error_handler)
+        print("🤖 Бот запускается...")
         
         # Запускаем бота
-        bot_updater.start_polling()
-        logger.info("✅ Бот успешно запущен!")
-        return True
+        bot_application.run_polling()
         
     except Exception as e:
         logger.error(f"Ошибка при запуске бота: {e}")
-        return False
 
 def create_app():
     """Создание Flask приложения"""
@@ -407,7 +404,6 @@ def create_app():
                 body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
                 .status { padding: 10px; border-radius: 5px; margin: 10px 0; }
                 .running { background: #d4edda; color: #155724; }
-                .stopped { background: #f8d7da; color: #721c24; }
                 a { color: #007bff; text-decoration: none; }
                 a:hover { text-decoration: underline; }
             </style>
@@ -426,23 +422,16 @@ def create_app():
                 <li><a href="/health">Проверить статус сервиса</a></li>
                 <li><a href="/stats">Посмотреть статистику бота</a></li>
             </ul>
-            
-            <h2>🔗 Ссылки</h2>
-            <ul>
-                <li><a href="https://lesgaft.spb.ru" target="_blank">Официальный сайт НГУ им. П.Ф. Лесгафта</a></li>
-            </ul>
         </body>
         </html>
         """
     
     @app.route('/health')
     def health():
-        bot_status = "running" if bot_updater and bot_updater.running else "stopped"
         return {
             "status": "healthy",
             "service": "telegram-bot",
-            "bot_status": bot_status,
-            "timestamp": time.time(),
+            "timestamp": os.times().system,
             "environment": "production"
         }, 200
     
@@ -451,8 +440,7 @@ def create_app():
         return {
             "status": "running",
             "button_stats": button_stats,
-            "total_requests": sum(button_stats.values()),
-            "timestamp": time.time()
+            "total_requests": sum(button_stats.values())
         }
     
     return app
@@ -463,19 +451,13 @@ def main():
     print("🚀 Запуск приложения...")
     print("📍 Кафедра ТиМ МФОР НГУ им. П.Ф. Лесгафта")
     print("🌐 Хостинг: Render.com")
-    print("📚 Версия: python-telegram-bot 13.15")
-    print("🐍 Python: 3.11.0")
+    print("📚 Версия: python-telegram-bot 21.8")
     print("=" * 60)
     
-    # Запускаем бота
-    print("🤖 Запуск Telegram бота...")
-    bot_started = setup_bot()
-    
-    if bot_started:
-        print("✅ Бот успешно запущен!")
-    else:
-        print("❌ Не удалось запустить бота. Проверьте BOT_TOKEN.")
-        return
+    # Запускаем бота в отдельном потоке
+    bot_thread = threading.Thread(target=run_bot, daemon=True)
+    bot_thread.start()
+    print("✅ Telegram бот запущен в фоновом режиме")
     
     # Запускаем Flask приложение
     app = create_app()
@@ -485,13 +467,13 @@ def main():
     print("📊 Доступные endpoints:")
     print("   /          - Главная страница")
     print("   /health    - Health check")
-    print("   /stats     - Статистика бота") 
+    print("   /stats     - Статистика бота")
     print("=" * 60)
     print("⚡ Приложение готово к работе!")
     print("=" * 60)
     
     # Запускаем Flask (блокирующий вызов)
-    app.run(host='0.0.0.0', port=port, debug=False)
+    app.run(host='0.0.0.0', port=port, debug=False, use_reloader=False)
 
 if __name__ == "__main__":
     main()
