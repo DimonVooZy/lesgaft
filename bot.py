@@ -1,11 +1,12 @@
 import logging
 import os
-import asyncio
-import threading
+import time
 from flask import Flask
 from telegram import Update, ReplyKeyboardMarkup
 from telegram.ext import Application, CommandHandler, ContextTypes, MessageHandler, filters
 import json
+import asyncio
+import threading
 
 # Настройка логирования
 logging.basicConfig(
@@ -363,7 +364,7 @@ async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
 bot_application = None
 
 def run_bot():
-    """Запуск бота в отдельном потоке"""
+    """Запуск бота в отдельном потоке с собственным event loop"""
     global bot_application
     
     if not BOT_TOKEN:
@@ -371,6 +372,10 @@ def run_bot():
         return
     
     try:
+        # Создаем новый event loop для этого потока
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        
         bot_application = Application.builder().token(BOT_TOKEN).build()
         
         # Добавляем обработчики
@@ -382,8 +387,8 @@ def run_bot():
         
         print("🤖 Бот запускается...")
         
-        # Запускаем бота
-        bot_application.run_polling()
+        # Запускаем бота в этом event loop
+        loop.run_until_complete(bot_application.run_polling())
         
     except Exception as e:
         logger.error(f"Ошибка при запуске бота: {e}")
@@ -431,7 +436,7 @@ def create_app():
         return {
             "status": "healthy",
             "service": "telegram-bot",
-            "timestamp": os.times().system,
+            "timestamp": time.time(),
             "environment": "production"
         }, 200
     
@@ -451,7 +456,7 @@ def main():
     print("🚀 Запуск приложения...")
     print("📍 Кафедра ТиМ МФОР НГУ им. П.Ф. Лесгафта")
     print("🌐 Хостинг: Render.com")
-    print("📚 Версия: python-telegram-bot 21.8")
+    print("📚 Версия: python-telegram-bot 20.8")
     print("=" * 60)
     
     # Запускаем бота в отдельном потоке
