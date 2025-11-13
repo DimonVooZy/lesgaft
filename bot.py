@@ -6,7 +6,6 @@ from telegram import Update, ReplyKeyboardMarkup
 from telegram.ext import Application, CommandHandler, ContextTypes, MessageHandler, filters
 import json
 import threading
-from threading import Event
 
 # Настройка логирования
 logging.basicConfig(
@@ -261,46 +260,30 @@ async def statreset_command(update: Update, context: ContextTypes.DEFAULT_TYPE) 
 async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     logger.error(f"Ошибка при обработке обновления: {context.error}")
 
-class TelegramBot:
-    def __init__(self):
-        self.application = None
-        self.is_running = False
-        
-    def start(self):
-        """Запуск бота"""
-        if not BOT_TOKEN:
-            logger.error("❌ BOT_TOKEN не установлен!")
-            return False
-            
-        try:
-            self.application = Application.builder().token(BOT_TOKEN).build()
-            
-            # Добавляем обработчики
-            self.application.add_handler(CommandHandler("start", start))
-            self.application.add_handler(CommandHandler("stat", stat_command))
-            self.application.add_handler(CommandHandler("statreset", statreset_command))
-            self.application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
-            self.application.add_error_handler(error_handler)
-            
-            logger.info("🤖 Бот запускается...")
-            self.is_running = True
-            
-            # Запускаем polling
-            self.application.run_polling(
-                drop_pending_updates=True,
-                allowed_updates=Update.ALL_TYPES
-            )
-            return True
-            
-        except Exception as e:
-            logger.error(f"Ошибка при запуске бота: {e}")
-            return False
+def run_bot():
+    """Запуск бота в отдельном потоке"""
+    if not BOT_TOKEN:
+        logger.error("❌ BOT_TOKEN не установлен!")
+        return
     
-    def stop(self):
-        """Остановка бота"""
-        if self.application and self.is_running:
-            self.application.stop()
-            self.is_running = False
+    try:
+        # Создаем application с более старым методом для совместимости
+        application = Application.builder().token(BOT_TOKEN).build()
+        
+        # Добавляем обработчики
+        application.add_handler(CommandHandler("start", start))
+        application.add_handler(CommandHandler("stat", stat_command))
+        application.add_handler(CommandHandler("statreset", statreset_command))
+        application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+        application.add_error_handler(error_handler)
+        
+        logger.info("🤖 Бот запускается...")
+        
+        # Простой запуск polling без дополнительных параметров
+        application.run_polling()
+        
+    except Exception as e:
+        logger.error(f"Ошибка при запуске бота: {e}")
 
 def create_app():
     """Создание Flask приложения"""
@@ -308,7 +291,11 @@ def create_app():
     
     @app.route('/')
     def home():
-        return """
+        total_requests = sum(button_stats.values())
+        uptime_seconds = time.time() - start_time
+        uptime_str = time.strftime("%H:%M:%S", time.gmtime(uptime_seconds))
+        
+        return f"""
         <!DOCTYPE html>
         <html>
         <head>
@@ -316,51 +303,51 @@ def create_app():
             <meta charset="utf-8">
             <meta name="viewport" content="width=device-width, initial-scale=1">
             <style>
-                body { 
+                body {{ 
                     font-family: Arial, sans-serif; 
                     max-width: 800px; 
                     margin: 0 auto; 
                     padding: 20px;
                     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
                     color: white;
-                }
-                .container {
+                }}
+                .container {{
                     background: rgba(255,255,255,0.1);
                     backdrop-filter: blur(10px);
                     padding: 30px;
                     border-radius: 15px;
                     box-shadow: 0 8px 32px rgba(0,0,0,0.1);
-                }
-                .status { 
+                }}
+                .status {{ 
                     padding: 15px; 
                     border-radius: 10px; 
                     margin: 20px 0; 
                     text-align: center;
-                }
-                .running { 
+                }}
+                .running {{ 
                     background: rgba(76, 175, 80, 0.2); 
                     border: 2px solid #4CAF50;
-                }
-                a { 
+                }}
+                a {{ 
                     color: #ffeb3b; 
                     text-decoration: none; 
                     font-weight: bold;
-                }
-                a:hover { 
+                }}
+                a:hover {{ 
                     text-decoration: underline; 
-                }
-                .stats-grid {
+                }}
+                .stats-grid {{
                     display: grid;
                     grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
                     gap: 15px;
                     margin: 20px 0;
-                }
-                .stat-item {
+                }}
+                .stat-item {{
                     background: rgba(255,255,255,0.1);
                     padding: 15px;
                     border-radius: 10px;
                     text-align: center;
-                }
+                }}
             </style>
         </head>
         <body>
@@ -380,7 +367,7 @@ def create_app():
                     </div>
                     <div class="stat-item">
                         <h3>🕒 Время работы</h3>
-                        <p>{uptime}</p>
+                        <p>{uptime_str}</p>
                     </div>
                 </div>
                 
@@ -405,10 +392,7 @@ def create_app():
             </div>
         </body>
         </html>
-        """.format(
-            total_requests=sum(button_stats.values()),
-            uptime=time.strftime("%H:%M:%S", time.gmtime(time.time() - start_time))
-        )
+        """
     
     @app.route('/health')
     def health():
@@ -416,8 +400,7 @@ def create_app():
             "status": "healthy",
             "service": "telegram-bot",
             "timestamp": time.time(),
-            "environment": "production",
-            "bot_running": bot.is_running if bot else False
+            "environment": "production"
         }, 200
     
     @app.route('/stats')
@@ -426,17 +409,10 @@ def create_app():
             "status": "running",
             "button_stats": button_stats,
             "total_requests": sum(button_stats.values()),
-            "uptime_seconds": time.time() - start_time,
-            "bot_status": "running" if bot and bot.is_running else "stopped"
+            "uptime_seconds": time.time() - start_time
         }
     
     return app
-
-def run_bot():
-    """Запуск бота в отдельном потоке"""
-    global bot
-    bot = TelegramBot()
-    bot.start()
 
 def run_flask():
     """Запуск Flask приложения"""
@@ -446,7 +422,6 @@ def run_flask():
     app.run(host='0.0.0.0', port=port, debug=False, use_reloader=False)
 
 # Глобальные переменные
-bot = None
 start_time = time.time()
 
 def main():
