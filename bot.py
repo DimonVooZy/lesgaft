@@ -85,7 +85,6 @@ CONSULTATION_SCHEDULE_TEXT = """
 Для уточнения расписания конкретного преподавателя обращайтесь по телефону кафедры.
 """
 
-# Разбиваем историю на части
 HISTORY_TEXT_PART1 = """
 <b>📚 История кафедры</b>
 
@@ -272,7 +271,6 @@ STAFF_TEXT = """
 • <b>Фоль (ур. Кострикова) Анастасия Сергеевна</b> - преподаватель каф.
 """
 
-# Функция для создания клавиатуры
 def get_main_keyboard():
     keyboard = [
         ["📢 Новости", "🗓️ Расписание консультаций"],
@@ -282,32 +280,27 @@ def get_main_keyboard():
     ]
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
 
-def start(update: Update, context: CallbackContext) -> None:
-    """Отправляет приветственное сообщение когда пользователь отправляет /start"""
+def start(update: Update, context: CallbackContext):
     try:
         update.message.reply_text(WELCOME_TEXT, parse_mode='HTML', reply_markup=get_main_keyboard())
         logger.info(f"Пользователь {update.effective_user.id} запустил бота")
     except Exception as e:
         logger.error(f"Ошибка в команде start: {e}")
 
-def handle_message(update: Update, context: CallbackContext) -> None:
-    """Обрабатывает текстовые сообщения и показывает соответствующий раздел"""
+def handle_message(update: Update, context: CallbackContext):
     try:
         text = update.message.text
         
         if text == "📢 Новости":
-            response = NEWS_TEXT
             button_stats["📢 Новости"] += 1
-            update.message.reply_text(response, parse_mode='HTML', reply_markup=get_main_keyboard())
+            update.message.reply_text(NEWS_TEXT, parse_mode='HTML', reply_markup=get_main_keyboard())
             
         elif text == "🗓️ Расписание консультаций":
-            response = CONSULTATION_SCHEDULE_TEXT
             button_stats["🗓️ Расписание консультаций"] += 1
-            update.message.reply_text(response, parse_mode='HTML', reply_markup=get_main_keyboard())
+            update.message.reply_text(CONSULTATION_SCHEDULE_TEXT, parse_mode='HTML', reply_markup=get_main_keyboard())
             
         elif text == "📚 История кафедры":
             button_stats["📚 История кафедры"] += 1
-            # Отправляем историю по частям
             update.message.reply_text(HISTORY_TEXT_PART1, parse_mode='HTML')
             update.message.reply_text(HISTORY_TEXT_PART2, parse_mode='HTML')
             update.message.reply_text(HISTORY_TEXT_PART3, parse_mode='HTML')
@@ -315,81 +308,54 @@ def handle_message(update: Update, context: CallbackContext) -> None:
             update.message.reply_text(HISTORY_TEXT_PART5, parse_mode='HTML', reply_markup=get_main_keyboard())
             
         elif text == "🎓 Абитуриентам":
-            response = APPLICANTS_TEXT
             button_stats["🎓 Абитуриентам"] += 1
-            update.message.reply_text(response, parse_mode='HTML', reply_markup=get_main_keyboard())
+            update.message.reply_text(APPLICANTS_TEXT, parse_mode='HTML', reply_markup=get_main_keyboard())
             
         elif text == "👨‍🎓 Студентам":
-            response = STUDENTS_TEXT
             button_stats["👨‍🎓 Студентам"] += 1
-            update.message.reply_text(response, parse_mode='HTML', reply_markup=get_main_keyboard())
+            update.message.reply_text(STUDENTS_TEXT, parse_mode='HTML', reply_markup=get_main_keyboard())
             
         elif text == "⚽ Спортивная работа":
-            response = SPORTS_WORK_TEXT
             button_stats["⚽ Спортивная работа"] += 1
-            update.message.reply_text(response, parse_mode='HTML', reply_markup=get_main_keyboard())
+            update.message.reply_text(SPORTS_WORK_TEXT, parse_mode='HTML', reply_markup=get_main_keyboard())
             
         elif text == "🏅 Центр тестирования ГТО":
             button_stats["🏅 Центр тестирования ГТО"] += 1
-            # Отправляем текст о ГТО по частям
             update.message.reply_text(GTO_TESTING_CENTER_TEXT, parse_mode='HTML')
             update.message.reply_text(GTO_TESTING_CENTER_TEXT_PART2, parse_mode='HTML', reply_markup=get_main_keyboard())
             
         elif text == "👨‍🏫 Сотрудники кафедры":
-            response = STAFF_TEXT
             button_stats["👨‍🏫 Сотрудники кафедры"] += 1
-            update.message.reply_text(response, parse_mode='HTML', reply_markup=get_main_keyboard())
+            update.message.reply_text(STAFF_TEXT, parse_mode='HTML', reply_markup=get_main_keyboard())
             
         else:
-            response = "Пожалуйста, используйте кнопки меню для навигации."
-            update.message.reply_text(response, parse_mode='HTML', reply_markup=get_main_keyboard())
+            update.message.reply_text("Пожалуйста, используйте кнопки меню для навигации.", reply_markup=get_main_keyboard())
         
-        # Сохраняем статистику после каждого нажатия
-        if text in button_stats:
-            save_stats(button_stats)
+        save_stats(button_stats)
         
     except Exception as e:
         logger.error(f"Ошибка обработки сообщения: {e}")
-        update.message.reply_text("Произошла ошибка при обработке запроса. Попробуйте позже.", reply_markup=get_main_keyboard())
 
-def stat_command(update: Update, context: CallbackContext) -> None:
-    """Показывает статистику обращений к кнопкам"""
+def stat_command(update: Update, context: CallbackContext):
     try:
-        stat_text = "<b>📊 Статистика обращений к кнопкам:</b>\n\n"
-        total = 0
-        
+        stat_text = "<b>📊 Статистика обращений:</b>\n\n"
         for button, count in button_stats.items():
-            stat_text += f"• {button}: {count} раз\n"
-            total += count
-        
-        stat_text += f"\n<b>Всего обращений:</b> {total}"
-        
+            stat_text += f"• {button}: {count}\n"
+        stat_text += f"\nВсего: {sum(button_stats.values())}"
         update.message.reply_text(stat_text, parse_mode='HTML')
-        logger.info(f"Пользователь {update.effective_user.id} запросил статистику")
     except Exception as e:
         logger.error(f"Ошибка в команде stat: {e}")
-        update.message.reply_text("Ошибка при получении статистики")
 
-def statreset_command(update: Update, context: CallbackContext) -> None:
-    """Сбрасывает статистику обращений"""
+def statreset_command(update: Update, context: CallbackContext):
     try:
-        global button_stats
-        
-        # Сбрасываем все счетчики
         for button in button_stats:
             button_stats[button] = 0
-        
-        # Сохраняем сброшенную статистику
         save_stats(button_stats)
-        
-        update.message.reply_text("✅ Статистика успешно сброшена!")
-        logger.info(f"Пользователь {update.effective_user.id} сбросил статистику")
+        update.message.reply_text("✅ Статистика сброшена!")
     except Exception as e:
         logger.error(f"Ошибка в команде statreset: {e}")
-        update.message.reply_text("Ошибка при сбросе статистики")
 
-def error_handler(update: Update, context: CallbackContext) -> None:
-    """Обрабатывает ошибки"""
+def error_handler(update: Update, context: CallbackContext):
     logger.error(f"Ошибка при обработке обновления: {context.error}")
 
 # Глобальная переменная для бота
@@ -404,7 +370,7 @@ def setup_bot():
         return False
     
     try:
-        bot_updater = Updater(BOT_TOKEN)
+        bot_updater = Updater(BOT_TOKEN, use_context=True)
         dispatcher = bot_updater.dispatcher
         
         # Добавляем обработчики
@@ -416,7 +382,7 @@ def setup_bot():
         # Добавляем обработчик ошибок
         dispatcher.add_error_handler(error_handler)
         
-        # Запускаем бота в фоновом режиме
+        # Запускаем бота
         bot_updater.start_polling()
         logger.info("✅ Бот успешно запущен!")
         return True
@@ -459,13 +425,11 @@ def create_app():
             <ul>
                 <li><a href="/health">Проверить статус сервиса</a></li>
                 <li><a href="/stats">Посмотреть статистику бота</a></li>
-                <li><a href="/start_bot">Перезапустить бота</a></li>
             </ul>
             
             <h2>🔗 Ссылки</h2>
             <ul>
                 <li><a href="https://lesgaft.spb.ru" target="_blank">Официальный сайт НГУ им. П.Ф. Лесгафта</a></li>
-                <li><a href="https://t.me/your_bot_username" target="_blank">Написать боту в Telegram</a></li>
             </ul>
         </body>
         </html>
@@ -491,17 +455,6 @@ def create_app():
             "timestamp": time.time()
         }
     
-    @app.route('/start_bot')
-    def start_bot_route():
-        if bot_updater and bot_updater.running:
-            return {"status": "already_running", "message": "Бот уже запущен"}
-        
-        success = setup_bot()
-        if success:
-            return {"status": "started", "message": "Бот успешно запущен"}
-        else:
-            return {"status": "error", "message": "Не удалось запустить бота"}, 500
-    
     return app
 
 def main():
@@ -511,6 +464,7 @@ def main():
     print("📍 Кафедра ТиМ МФОР НГУ им. П.Ф. Лесгафта")
     print("🌐 Хостинг: Render.com")
     print("📚 Версия: python-telegram-bot 13.15")
+    print("🐍 Python: 3.11.0")
     print("=" * 60)
     
     # Запускаем бота
@@ -521,6 +475,7 @@ def main():
         print("✅ Бот успешно запущен!")
     else:
         print("❌ Не удалось запустить бота. Проверьте BOT_TOKEN.")
+        return
     
     # Запускаем Flask приложение
     app = create_app()
@@ -531,7 +486,6 @@ def main():
     print("   /          - Главная страница")
     print("   /health    - Health check")
     print("   /stats     - Статистика бота") 
-    print("   /start_bot - Перезапустить бота")
     print("=" * 60)
     print("⚡ Приложение готово к работе!")
     print("=" * 60)
